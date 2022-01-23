@@ -158,6 +158,6 @@ for counter, (data_file, root) in enumerate(zip(data_files, roots)):
     # plt.show()
 
 
-plt.savefig('agreement_stats_coasttrain_naip_s2.png', dpi=300, bbox_inches='tight')
+plt.savefig('plots/agreement_stats_coasttrain_naip_s2.png', dpi=300, bbox_inches='tight')
 plt.close('all')
 
