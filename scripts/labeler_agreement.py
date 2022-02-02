@@ -77,8 +77,8 @@ def mean_dice_np(y_true, y_pred):
 
 
 data_files = [
-'datasetA_NAIP/A_naip_meta_served.csv',
-'datasetC_S2/C_s2_meta_served.csv'
+'../metadata/A_naip_meta_served.csv',
+'../metadata/C_s2_meta_served.csv'
 ]
 
 roots = [
@@ -144,12 +144,13 @@ for counter, (data_file, root) in enumerate(zip(data_files, roots)):
     iou_scores[iou_scores == 0.0] = 1.0
 
     plt.subplot(2,2,counter+1)
-    plt.hexbin(iou_scores,kld_scores, gridsize=16, cmap='Greys', vmin=1)
+    plt.hexbin(iou_scores,kld_scores, gridsize=16, cmap='Blues', vmin=0)
     cb=plt.colorbar()
     plt.plot(np.mean(iou_scores),np.mean(kld_scores),'kx')
     plt.text(np.mean(iou_scores)-.07,np.mean(kld_scores)+.1,'Mean = ('+str(np.mean(iou_scores))[:4]+','+str(np.mean(kld_scores))[:4]+')', fontsize=8)
     cb.set_label('Number of images')
-    plt.xlabel('IoU'); plt.ylabel('Kullback-Leibler Divergence')
+    plt.xlabel('Mean Intersection-over-Union (IoU) score')
+    plt.ylabel('Mean Kullback-Leibler Divergence (KLD) score')
     if counter==0:
         plt.title('a) NAIP: {} images, {} classes'.format(num_dupes, NCLASSES), loc='left')
     else:
@@ -161,3 +162,84 @@ for counter, (data_file, root) in enumerate(zip(data_files, roots)):
 plt.savefig('../script_plots/agreement_stats_coasttrain_naip_s2.png', dpi=300, bbox_inches='tight')
 plt.close('all')
 
+
+
+
+
+plt.figure(figsize=(16,12))
+
+for counter, (data_file, root) in enumerate(zip(data_files, roots)):
+
+    dataset = pd.read_csv(data_file)
+    NCLASSES = dataset["num_classes"][0]
+
+    try:
+        label_names = ["_".join(a.split("_")[:-2]) for a in dataset["labels"].values]
+    except:
+        label_names = ["_".join(a.split("_")[:-2]) for a in dataset["label_image_filename"].values]
+
+    num_dupes=len(label_names) - len(np.unique(label_names))
+    print("Number of duplicate image pairs: {}".format(num_dupes))
+
+    # get pairs as  a list
+    d = defaultdict(list)  # key - number, value - list of indexes
+
+    for i, n in enumerate(label_names):
+        d[n].append(i)  # add index to list for this number n
+    # duplicates as indices
+    dupes = [v for v in d.values() if len(v) > 1]
+
+    #list of image name roots that are pairs
+    pairs = [(label_names[d[0]], label_names[d[1]]) for d in dupes]
+
+
+    kl = tf.keras.losses.KLDivergence()
+    kld_scores=[]
+    iou_scores=[]; dice_scores=[]
+    # for each pair, find the label image pair names, and read in
+    for p in pairs: 
+        ims = [d for d in dataset["labels"].values if d.startswith(p[0])]
+        im1=imread(root+os.sep+ims[0])
+        im2=imread(root+os.sep+ims[1])
+        # iou_scores.append(iou(im1, im2,NCLASSES))
+
+        nx,ny = im1.shape
+        lstack1 = np.zeros((nx,ny,NCLASSES+1))
+        lstack1[:,:,:NCLASSES+1] = (np.arange(NCLASSES+1) == 1+im1[...,None]-1).astype(int) #one-hot encode
+        lstack2 = np.zeros((nx,ny,NCLASSES+1))
+        lstack2[:,:,:NCLASSES+1] = (np.arange(NCLASSES+1) == 1+im2[...,None]-1).astype(int) #one-hot encode
+
+        dice=mean_dice_np(np.expand_dims(lstack1, 0), np.expand_dims(lstack2, 0))
+        dice_scores.append(float(dice))
+
+        iou=mean_iou_np(np.expand_dims(lstack1, 0), np.expand_dims(lstack2, 0))
+        iou_scores.append(float(iou))
+
+        kld=kl(tf.expand_dims(lstack1, 0), tf.expand_dims(lstack2, 0))
+        kld_scores.append(kld.numpy())
+
+    kld_scores = np.array(kld_scores)
+    iou_scores = np.array(iou_scores)
+    kld_scores[iou_scores == 0.0] = 0.0    
+    iou_scores[iou_scores == 0.0] = 1.0
+
+    plt.subplot(2,2,counter+1)
+    plt.hist(iou_scores, bins=np.linspace(0,1,10))
+    plt.ylim(0,50)
+    plt.vlines(np.mean(iou_scores),0,50, colors='r')
+    #cb=plt.colorbar()
+    #plt.plot(np.mean(iou_scores),np.mean(kld_scores),'kx')
+    plt.text(np.mean(iou_scores)-.15,30,'Mean = '+str(np.mean(iou_scores))[:4], fontsize=8)
+    #cb.set_label('Number of images')
+    plt.xlabel('Mean Intersection-over-Union (IoU) score'); 
+    plt.ylabel('Frequency')
+    if counter==0:
+        plt.title('a) NAIP: {} images, {} classes'.format(num_dupes, NCLASSES), loc='left')
+    else:
+        plt.title('b) Sentinel-2: {} images, {} classes'.format(num_dupes, NCLASSES), loc='left')
+
+    # plt.show()
+
+
+plt.savefig('../script_plots/agreement_stats_coasttrain_naip_s2_IOU.png', dpi=300, bbox_inches='tight')
+plt.close('all')
