@@ -1,0 +1,15 @@
+##conda env create --file env/coasttrain.yml
+name: coasttrain
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+- python
+- pandas
+- numpy
+- matplotlib
+- jupyter
+- ipython
+- cartopy
+- folium
+- selenium
